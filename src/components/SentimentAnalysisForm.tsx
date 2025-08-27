@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faFaceFrown, 
@@ -15,6 +15,7 @@ interface Emoji {
   iconSize: string;
   ringColor: string;
   bgColor: string;
+  bgColorDark: string;
 }
 
 interface FeedbackData {
@@ -51,16 +52,28 @@ const EmojiRatingForm: React.FC = () => {
     email: false
   });
   const [submitError, setSubmitError] = useState<string>('');
+  const [isFormValid, setIsFormValid] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   // Webhook URL - replace with your actual webhook URL
-  // Using a direct URL instead of process.env to avoid TypeScript errors
-  // Webhook URL - safest approach using Vite's environment variables
   const WEBHOOK_URL = import.meta.env?.VITE_WEBHOOK_URL || '';
 
   if (!WEBHOOK_URL) {
     console.error('Webhook URL is not defined. Please set VITE_WEBHOOK_URL environment variable.');
-    // You might want to handle this error more gracefully in production
   }
+
+  // Dark mode detection
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDarkMode(mediaQuery.matches);
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsDarkMode(e.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   const emojis: Emoji[] = [
     { 
@@ -69,7 +82,8 @@ const EmojiRatingForm: React.FC = () => {
       iconColor: '#E3424D', 
       iconSize: '45px', 
       ringColor: '#E3424D',
-      bgColor: '#FEEBEE'
+      bgColor: '#FEEBEE',
+      bgColorDark: 'rgba(227, 66, 77, 0.15)'
     },
     { 
       value: 2, 
@@ -77,7 +91,8 @@ const EmojiRatingForm: React.FC = () => {
       iconColor: '#FCC418', 
       iconSize: '45px', 
       ringColor: '#FCC418',
-      bgColor: '#FFF8E1'
+      bgColor: '#FFF8E1',
+      bgColorDark: 'rgba(252, 196, 24, 0.15)'
     },
     { 
       value: 3, 
@@ -85,7 +100,8 @@ const EmojiRatingForm: React.FC = () => {
       iconColor: '#2EB578', 
       iconSize: '45px', 
       ringColor: '#2EB578',
-      bgColor: '#E6F4EE'
+      bgColor: '#E6F4EE',
+      bgColorDark: 'rgba(46, 181, 120, 0.15)'
     }
   ];
 
@@ -111,7 +127,6 @@ const EmojiRatingForm: React.FC = () => {
         throw new Error(`Webhook error: ${response.status} ${response.statusText}`);
       }
 
-      // Don't try to parse the response, just check if it was successful
       return { success: true, message: 'Feedback submitted successfully' };
     } catch (error) {
       console.error('Webhook submission failed:', error);
@@ -151,6 +166,22 @@ const EmojiRatingForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Check if form is valid and should show submit button
+  const checkFormValidity = (): boolean => {
+    if (!selectedRating || !feedback.trim() || !name.trim() || !email.trim()) {
+      return false;
+    }
+
+    const hasErrors = feedback.trim().length < 10 || !validateEmail(email);
+    return !hasErrors;
+  };
+
+  // Update form validity whenever relevant fields change
+  useEffect(() => {
+    const isValid = checkFormValidity();
+    setIsFormValid(isValid);
+  }, [selectedRating, feedback, name, email]);
+
   const handleBlur = (field: keyof typeof touched) => {
     setTouched({ ...touched, [field]: true });
     validateForm();
@@ -182,7 +213,6 @@ const EmojiRatingForm: React.FC = () => {
   };
 
   const handleSubmit = async (): Promise<void> => {
-    // Mark all fields as touched to show errors
     setTouched({
       feedback: true,
       name: true,
@@ -202,7 +232,6 @@ const EmojiRatingForm: React.FC = () => {
       };
       
       try {
-        // Submit to webhook
         const result = await submitToWebhook(feedbackData);
         
         if (result.success) {
@@ -228,6 +257,7 @@ const EmojiRatingForm: React.FC = () => {
     setIsSubmitted(false);
     setErrors({});
     setSubmitError('');
+    setIsFormValid(false);
     setTouched({
       feedback: false,
       name: false,
@@ -235,18 +265,61 @@ const EmojiRatingForm: React.FC = () => {
     });
   };
 
+  // Dynamic class helpers for dark mode
+  const containerClasses = `min-h-screen w-full flex items-center justify-center p-4 transition-colors duration-200`;
+
+  const cardClasses = `w-full max-w-sm mx-auto rounded-xl shadow-lg overflow-hidden p-4 sm:p-6 border transition-colors duration-200 ${
+    isDarkMode 
+      ? 'bg-gray-800 border-gray-700' 
+      : 'bg-white border-gray-100'
+  }`;
+
+  const textClasses = `transition-colors duration-200 ${
+    isDarkMode ? 'text-gray-100' : 'text-gray-800'
+  }`;
+
+  const subtextClasses = `transition-colors duration-200 ${
+    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+  }`;
+
+  const labelClasses = `block text-sm font-medium transition-colors duration-200 text-left ${
+    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+  } mb-2`;
+
+  const inputClasses = (hasError: boolean) => 
+    `w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent focus:outline-none transition-all duration-200 text-sm sm:text-base ${
+      hasError
+        ? 'border-red-500 focus:ring-red-500'
+        : isDarkMode
+        ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400 focus:ring-blue-500'
+        : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:ring-blue-500'
+    }`;
+
+  const textareaClasses = (hasError: boolean) =>
+    `w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent resize-none focus:outline-none transition-all duration-200 text-sm sm:text-base ${
+      hasError
+        ? 'border-red-500 focus:ring-red-500'
+        : isDarkMode
+        ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400 focus:ring-blue-500'
+        : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:ring-blue-500'
+    }`;
+
+  const helperTextClasses = `text-xs sm:text-sm transition-colors duration-200 ${
+    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+  } italic`;
+
   if (isSubmitted) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center p-4">
-        <div className="w-full max-w-sm mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-6 border border-gray-100">
+      <div className={containerClasses}>
+        <div className={cardClasses}>
           <div className="text-center py-6">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
                 <FontAwesomeIcon icon={faCheckCircle} className="text-green-500 text-4xl" />
               </div>
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Thank You!</h2>
-            <p className="text-sm sm:text-base text-gray-600 mb-6">
+            <h2 className={`text-xl sm:text-2xl font-bold mb-2 ${textClasses}`}>Thank You!</h2>
+            <p className={`text-sm sm:text-base mb-6 ${subtextClasses}`}>
               Your feedback has been submitted successfully. We appreciate your input!
             </p>
             <button
@@ -262,14 +335,14 @@ const EmojiRatingForm: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gray-50">
-      <div className="w-full max-w-sm mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-4 sm:p-6 border border-gray-100">
+    <div className={containerClasses}>
+      <div className={cardClasses}>
         <div>
           <div className="text-center mb-4 sm:mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">
+            <h2 className={`text-xl sm:text-2xl font-bold mb-2 ${textClasses}`}>
               How was your experience?
             </h2>
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className={`text-sm sm:text-base ${subtextClasses}`}>
               Please rate your overall satisfaction
             </p>
           </div>
@@ -280,12 +353,12 @@ const EmojiRatingForm: React.FC = () => {
               {[1, 2, 3].map((step) => (
                 <div
                   key={step}
-                  className={`h-2 w-2 rounded-full ${
+                  className={`h-2 w-2 rounded-full transition-colors duration-200 ${
                     (step === 1 && selectedRating !== null) ||
                     (step === 2 && feedback.trim() !== '') ||
                     (step === 3 && name.trim() !== '' && email.trim() !== '')
                       ? 'bg-blue-500'
-                      : 'bg-gray-300'
+                      : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                   }`}
                 />
               ))}
@@ -307,12 +380,12 @@ const EmojiRatingForm: React.FC = () => {
                     onMouseEnter={() => setHoveredRating(item.value)}
                     onMouseLeave={() => setHoveredRating(null)}
                     className={`p-2 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 outline-none hover:outline-none focus:outline-none ${
-                      isSelected ? 'bg-gray-50' : 'hover:bg-gray-50'
+                      isSelected || isHovered ? '' : isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
                     }`}
                     style={(isSelected || isHovered) ? { 
                       boxShadow: `0 0 0 3px ${item.ringColor}, 0 4px 12px rgba(0,0,0,0.1)`,
                       transform: (isSelected || isHovered) ? 'scale(1.1)' : 'scale(1)',
-                      backgroundColor: (isSelected || isHovered) ? item.bgColor : 'transparent'
+                      backgroundColor: (isSelected || isHovered) ? (isDarkMode ? item.bgColorDark : item.bgColor) : 'transparent'
                     } : {}}
                     title={item.label}
                     aria-label={`Rate ${item.label}`}
@@ -326,10 +399,10 @@ const EmojiRatingForm: React.FC = () => {
             {selectedRating && (
               <div className="text-center">
                 <span 
-                  className="text-xs sm:text-sm font-medium px-3 py-1 rounded-full"
+                  className="text-xs sm:text-sm font-medium px-3 py-1 rounded-full transition-colors duration-200"
                   style={{ 
                     color: emojis[selectedRating - 1]?.ringColor,
-                    backgroundColor: emojis[selectedRating - 1]?.bgColor
+                    backgroundColor: isDarkMode ? emojis[selectedRating - 1]?.bgColorDark : emojis[selectedRating - 1]?.bgColor
                   }}
                 >
                   {emojis[selectedRating - 1]?.label}
@@ -338,10 +411,10 @@ const EmojiRatingForm: React.FC = () => {
             )}
           </div>
 
-          {/* Text Area Section - Only show after rating is selected */}
+          {/* Text Area Section */}
           {selectedRating && (
             <div className="mb-4 sm:mb-6 transition-all duration-500 ease-in-out">
-              <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="feedback" className={labelClasses}>
                 Please share what worked well or what could be improved
               </label>
               <textarea
@@ -349,11 +422,7 @@ const EmojiRatingForm: React.FC = () => {
                 value={feedback}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFeedback(e.target.value)}
                 onBlur={() => handleBlur('feedback')}
-                className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent resize-none focus:outline-none transition-colors text-sm sm:text-base ${
-                  touched.feedback && errors.feedback 
-                    ? 'border-red-500 focus:ring-red-500' 
-                    : 'border-gray-300 focus:ring-blue-500'
-                }`}
+                className={textareaClasses(touched.feedback && !!errors.feedback)}
                 rows={4}
                 placeholder="Your detailed feedback helps us improve our service..."
               />
@@ -366,13 +435,13 @@ const EmojiRatingForm: React.FC = () => {
             </div>
           )}
 
-          {/* Contact Information Section - Only show after feedback text is provided */}
+          {/* Contact Information Section */}
           {selectedRating && feedback.trim() && (
             <div className="mb-4 sm:mb-6 transition-all duration-500 ease-in-out">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="name" className="block text-sm text-left font-medium text-gray-700 mb-2">
-                    Name/Company Name
+                  <label htmlFor="name" className={labelClasses}>
+                    Full Name / Company Name
                   </label>
                   <input
                     id="name"
@@ -380,11 +449,7 @@ const EmojiRatingForm: React.FC = () => {
                     value={name}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                     onBlur={() => handleBlur('name')}
-                    className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent focus:outline-none transition-colors text-sm sm:text-base ${
-                      touched.name && errors.name 
-                        ? 'border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-500'
-                    }`}
+                    className={inputClasses(touched.name && !!errors.name)}
                     placeholder="Enter your name or company name"
                   />
                   {touched.name && errors.name && (
@@ -395,7 +460,7 @@ const EmojiRatingForm: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm text-left font-medium text-gray-700 mb-2">
+                  <label htmlFor="email" className={labelClasses}>
                     Email Address
                   </label>
                   <input
@@ -404,11 +469,7 @@ const EmojiRatingForm: React.FC = () => {
                     value={email}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                     onBlur={() => handleBlur('email')}
-                    className={`w-full p-3 border rounded-lg focus:ring-2 focus:border-transparent focus:outline-none transition-colors text-sm sm:text-base ${
-                      touched.email && errors.email 
-                        ? 'border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-500'
-                    }`}
+                    className={inputClasses(touched.email && !!errors.email)}
                     placeholder="Enter your email address"
                   />
                   {touched.email && errors.email && (
@@ -422,13 +483,17 @@ const EmojiRatingForm: React.FC = () => {
             </div>
           )}
 
-          {/* Submit Button - Only show when all previous fields are completed */}
+          {/* Submit Button */}
           {selectedRating && feedback.trim() && name.trim() && email.trim() && (
             <div className="transition-all duration-500 ease-in-out">
               <button
                 onClick={handleSubmit}
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
+                disabled={isLoading || !isFormValid}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center justify-center text-sm sm:text-base ${
+                  isFormValid && !isLoading
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer'
+                    : isDarkMode ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 {isLoading ? (
                   <>
@@ -441,10 +506,12 @@ const EmojiRatingForm: React.FC = () => {
                 ) : 'Submit Feedback'}
               </button>
               
-              {/* Error message for webhook submission */}
+              {/* Error message */}
               {submitError && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center text-red-700 text-sm">
+                <div className={`mt-3 p-3 border rounded-lg transition-colors duration-200 ${
+                  isDarkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center text-red-700 dark:text-red-400 text-sm">
                     <FontAwesomeIcon icon={faExclamationCircle} className="mr-2" />
                     <span>{submitError}</span>
                   </div>
@@ -470,6 +537,12 @@ const EmojiRatingForm: React.FC = () => {
             {selectedRating && feedback.trim() && (!name.trim() || !email.trim()) && (
               <p className="text-xs sm:text-sm text-gray-500">
                 📝 Please fill in your contact information to submit
+              </p>
+            )}
+
+            {selectedRating && feedback.trim() && name.trim() && email.trim() && !isFormValid && (
+              <p className="text-xs sm:text-sm text-red-500 dark:text-red-400 italic transition-colors duration-200">
+                Please fix the validation errors above
               </p>
             )}
           </div>
